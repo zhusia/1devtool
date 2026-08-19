@@ -1,0 +1,19 @@
+{
+  "name": "1DevTool Remote",
+  "short_name": "Remote",
+  "description": "Pair with 1DevTool desktop and control its terminals and AI agents from your phone.",
+  "start_url": "/ui/",
+  "scope": "/ui/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "icons": [
+    {
+      "src": "/ui/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

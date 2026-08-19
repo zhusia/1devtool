@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output (compiled bundles are committed in this repo as the source)
+# dist/
+
+# Runtime data
+*.log
+*.db
+*.sqlite
+entitlement.json
+entitlement-shadow.json
+entitlement-gate.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Deb/extract artifacts
+*.deb
+*.AppImage
+*.exe
+chunks/
+deb/
+deb-root/
+ctrl/
+opt/

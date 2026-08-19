@@ -1,0 +1,1 @@
+import{r as t}from"./index-KvNu_ZFT.js";function o(){const[a,r]=t.useState(!1);return t.useEffect(()=>{let e=0;const n=requestAnimationFrame(()=>{e=requestAnimationFrame(()=>r(!0))});return()=>{cancelAnimationFrame(n),cancelAnimationFrame(e)}},[]),a}export{o as u};

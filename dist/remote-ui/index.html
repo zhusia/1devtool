@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Remote" />
+    <title>1DevTool Remote</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>" />
+    <!-- PWA: "Add to Home Screen" runs standalone (no browser chrome) — the
+         single biggest native-feel win. See design_mobile_guide.md §5. -->
+    <link rel="manifest" href="/ui/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/ui/icon.svg" />
+    <style>
+      /* Keep the app no taller than the small viewport so iOS Safari's floating
+         bottom URL pill cannot cover the tab bar after the toolbar collapses.
+         `--app-vh` still mirrors visualViewport.height and wins only when the
+         keyboard makes the visible viewport smaller than 100svh. */
+      :root {
+        --app-vh: 100svh;
+        --app-top: 0px;
+      }
+      /* Keep wide terminal grids and horizontally scrolling controls contained
+         inside the phone shell. Clipping only on body still lets their intrinsic
+         width expand the root document in mobile Safari. */
+      html, body {
+        height: 100%;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      body { margin: 0; }
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        height: 100svh;
+        height: min(var(--app-vh, 100svh), 100svh);
+        min-height: 0;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        transform: translateY(var(--app-top, 0px));
+        width: 100%;
+      }
+      #app > * {
+        min-width: 0;
+        max-width: 100%;
+      }
+    </style>
+    <script>
+      (function () {
+        var de = document.documentElement
+        var appViewportFrame = 0
+        var lastAppHeight = -1
+        var lastAppTop = -1
+
+        function applyAppViewport() {
+          appViewportFrame = 0
+          var vv = window.visualViewport
+          // Fractional visualViewport values can jitter during Safari toolbar
+          // motion. Round once and avoid invalidating layout when unchanged.
+          var h = Math.round(vv ? vv.height : window.innerHeight)
+          // iOS can pan the visual viewport down while the keyboard opens. Move
+          // the height-bounded app into that same visible region so its bottom
+          // controls remain flush with the keyboard instead of leaving a gap.
+          var top = Math.max(0, Math.round(vv ? vv.offsetTop : 0))
+          if (h === lastAppHeight && top === lastAppTop) return
+          lastAppHeight = h
+          lastAppTop = top
+          de.style.setProperty('--app-vh', h + 'px')
+          de.style.setProperty('--app-top', top + 'px')
+        }
+
+        function syncAppViewport() {
+          if (appViewportFrame) return
+          appViewportFrame = requestAnimationFrame(applyAppViewport)
+        }
+
+        // Measure one `env(safe-area-inset-<side>)` value (px) via a hidden probe.
+        function measureEnvInset(side) {
+          var probe = document.createElement('div')
+          probe.style.cssText =
+            'position:fixed;' + side + ':0;left:0;width:0;height:env(safe-area-inset-' + side + ',0px);visibility:hidden;pointer-events:none;'
+          de.appendChild(probe)
+          var v = probe.getBoundingClientRect().height
+          probe.remove()
+          return v
+        }
+
+        // Reliable top + bottom safe-area insets. `env(safe-area-inset-*)` is the
+        // right value in Safari and installed (standalone) PWAs, but several
+        // in-app browsers (iOS Code Scanner, messenger webviews) report them as 0
+        // even though the system status bar overlaps the top and the home
+        // indicator / the browser's own floating toolbar crowd the bottom — so
+        // top bars hide under the notch and the bottom tab bar jams against the
+        // home indicator. We MEASURE the env values via probes; if they're 0 on
+        // iOS in a non-standalone webview, fall back to estimates so the bars
+        // stay clear. `.pt-safe`/`.pb-safe` read `--app-safe-top` /
+        // `--app-safe-bottom`.
+        function syncSafeInsets() {
+          var envTop = measureEnvInset('top')
+          var envBottom = measureEnvInset('bottom')
+
+          var ua = navigator.userAgent || ''
+          var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document)
+          var standalone =
+            ('standalone' in navigator && navigator.standalone) ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+
+          // Only fall back inside an in-app webview (which overlaps the system
+          // bars yet reports env=0). Regular mobile Safari ALSO reports env=0 but
+          // renders below its own chrome — adding padding there is wrong. Same
+          // heuristic as pairing.tsx isInAppBrowser(): a WKWebview lacks the
+          // `Version/` token that real Safari always carries.
+          var inAppWebview =
+            (/(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|MicroMessenger|Twitter|Snapchat|Pinterest|LinkedInApp|MiuiBrowser|wv\))/.test(ua)) ||
+            (isIOS && /Mobile\//.test(ua) && /Safari\//.test(ua) && !/Version\//.test(ua))
+
+          var fallback = isIOS && inAppWebview && !standalone
+          var top = envTop
+          if (envTop === 0 && fallback) top = 44 // status-bar estimate
+          var bottom = envBottom
+          if (envBottom === 0 && fallback) bottom = 34 // home-indicator estimate
+          de.style.setProperty('--app-safe-top', top + 'px')
+          de.style.setProperty('--app-safe-bottom', bottom + 'px')
+        }
+
+        function syncAll() { applyAppViewport(); syncSafeInsets() }
+
+        syncAll()
+        // env() can read 0 before first paint in some webviews; re-measure once.
+        requestAnimationFrame(syncSafeInsets)
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', syncAppViewport)
+          window.visualViewport.addEventListener('scroll', syncAppViewport)
+        }
+        // Browser chrome and the keyboard can fire many resize/scroll events in
+        // one frame. Viewport changes are rAF-coalesced; safe-area probes only
+        // need to be repeated when orientation changes.
+        window.addEventListener('resize', syncAppViewport)
+        document.addEventListener('focusin', syncAppViewport)
+        window.addEventListener('orientationchange', syncAll)
+      })()
+    </script>
+    <script type="module" crossorigin src="/ui/assets/index-BmerOGbF.js"></script>
+    <link rel="modulepreload" crossorigin href="/ui/assets/vendor-DMcJ72Nc.js">
+    <link rel="stylesheet" crossorigin href="/ui/assets/index-1wd07_EZ.css">
+  </head>
+  <body class="bg-canvas text-label overscroll-none">
+    <div id="app"></div>
+  </body>
+</html>
